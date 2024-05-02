@@ -35,6 +35,8 @@ class easyFancyBox_Admin {
 		add_action( 'admin_menu', array(__CLASS__, 'add_options_page') );
 
 		add_action( 'wp_loaded', array(__CLASS__, 'save_date' ) );
+		add_action( 'admin_notices', array(__CLASS__, 'show_review_request' ) );
+		add_action( 'wp_ajax_efb-review-action', array(__CLASS__, 'process_efb_review_action' ) );
 	}
 
 	/**
@@ -49,13 +51,15 @@ class easyFancyBox_Admin {
 	 * Enqueue admin styles and scripts
 	 */
 	public static function enqueue_scripts( $hook ) {
-		if ( self::$screen_id === $hook ) {
+		$screen = get_current_screen();
+		$is_dashboard_or_efb_options = 'dashboard' === $screen->id || self::$screen_id === $screen->id;
+		if ( $is_dashboard_or_efb_options ) {
 			$css_file = easyFancyBox::$plugin_url . 'inc/admin.css';
 			wp_register_style( 'firelight-css', $css_file, false, EASY_FANCYBOX_VERSION );
 			wp_enqueue_style( 'firelight-css' );
 
 			$js_file = easyFancyBox::$plugin_url . 'inc/admin.js';
-			wp_register_script( 'firelight-js', $js_file, array( 'wp-dom-ready' ), EASY_FANCYBOX_VERSION );
+			wp_register_script( 'firelight-js', $js_file, array( 'jquery', 'wp-dom-ready' ), EASY_FANCYBOX_VERSION );
 			wp_enqueue_script( 'firelight-js' );
 		}
 	}
@@ -88,6 +92,98 @@ class easyFancyBox_Admin {
 		submit_button();
 
 		echo '</form>';
+	}
+
+	/**
+	 * Show request for plugin review on options page
+	 */
+	public static function show_review_request() {
+		// Don't show if not on options screen or dashboard, or if already rated
+		$screen = get_current_screen();
+		$is_dashboard_or_efb_options = 'dashboard' === $screen->id || self::$screen_id === $screen->id;
+		$already_rated = get_option( 'efb_plugin_rated' ) && get_option( 'efb_plugin_rated' ) === 'true';
+		if ( ! $is_dashboard_or_efb_options || $already_rated ) {
+			return;
+		}
+
+		// Limit review notices to 10% of users initially
+		$user_review_number = get_option( 'efb_user_review_number' );
+		if ( ! $user_review_number ) {
+			$user_review_number = rand(1, 10);
+			update_option( 'efb_user_review_number', $user_review_number );
+		}
+		$selected = $user_review_number === '1' || $user_review_number === '2';
+		if ( ! $selected ) {
+			return;
+		}
+
+		// Only show if user has been using plugin for more than 60 days
+		$current_date = new DateTimeImmutable( date( 'Y-m-d' ) );
+		$plugin_time_stamp = get_option( 'easy_fancybox_date' );
+		$activation_date = $plugin_time_stamp
+			? new DateTimeImmutable( $plugin_time_stamp )
+			: $current_date;
+		$days_using_plugin = $activation_date->diff( $current_date )->days;
+		if ( $days_using_plugin < 60 ) {
+			return;
+		}
+
+		// Do not show if user interacted with reviews within last 90 days
+		$efb_last_review_interaction = get_option( 'efb_last_review_interaction' );
+		if ( $efb_last_review_interaction ) {
+			$last_review_interaction_date = new DateTimeImmutable( $efb_last_review_interaction );
+			$days_since_last_interaction = $last_review_interaction_date->diff( $current_date )->days;
+			if ( $days_since_last_interaction < 90 ) {
+				return;
+			}
+		}
+
+		// To summarize, this will only show:
+		// if is options screen
+		// if has not already been rated
+		// if user is selected for metered rollout
+		// if user has plugin more than 60 days
+		// if use has not interacted with reviews within 90 days
+		?>
+			<div class="notice notice-success is-dismissible efb-review-notice">
+				<p><?php _e( 'You\'ve been using Easy Fancybox for a long time! Awesome and thanks!', 'easy-fancybox' ); ?></p>
+				<p>
+					<?php printf(
+						__( 'We work hard to maintain it. Would you do us a BIG favor and give us a 5-star review on WordPress.org? Or share feedback <a %s>here</a>.', 'easy-fancybox' ),
+						'href="https://firelightwp.com/contact/" target="_blank"'
+					); ?>
+				</p>
+
+				<ul class="efb-review-actions" data-nonce="<?php echo esc_attr( wp_create_nonce( 'efb_review_action_nonce' ) ) ?>">
+					<li style="display:inline;"><a class="button-primary" data-rate-action="do-rate"
+						href="https://wordpress.org/support/plugin/easy-fancybox/reviews/#new-post" target="_blank"><?php _e( 'Ok, you deserve it!', 'easy-fancybox' ) ?></a>
+					</li>
+					<li style="display:inline;"><a class="button-secondary" data-rate-action="maybe-later" href="#"><?php _e( 'Maybe later', 'easy-fancybox' ) ?></a></li>
+					<li style="display:inline;"><a class="button-secondary" data-rate-action="done" href="#"><?php _e( 'Already did!', 'easy-fancybox' ) ?></a></li>
+				</ul>
+			</div>
+
+		<?php
+	}
+	/**
+	 * Process Ajax request when user interacts with review requests
+	 */
+	public static function process_efb_review_action() {
+		check_admin_referer( 'efb_review_action_nonce', '_n' );
+		if ( !current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$rate_action = $_POST['rate_action'];
+		$current_date = new DateTimeImmutable( date( 'Y-m-d' ) );
+		$current_date_as_string = $current_date->format( 'Y-m-d' );
+		update_option( 'efb_last_review_interaction', $current_date_as_string );
+
+		if ( 'done' === $rate_action ) {
+			update_option( 'efb_plugin_rated', 'true' );
+		}
+
+		exit;
 	}
 
 	/**
