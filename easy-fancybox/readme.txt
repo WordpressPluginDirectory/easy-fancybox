@@ -3,8 +3,9 @@ Contributors: firelightwp
 Tags: lightbox, gallery, image, photo, modal
 Requires at least: 5.0
 Requires PHP: 7.0
-Tested up to: 6.5.2
-Stable tag: 2.1.4
+Tested up to: 6.5.3
+Stable tag: 2.1.9
+License: GPLv3
 
 The most popular lightbox plugin for WordPress. Adds a simple, fast lightbox for viewing images, videos, and other media.
 
@@ -140,6 +141,22 @@ See the advanced [Easy FancyBox FAQ's](https://firelightwp.com/wordpress-lightbo
 2. Example of a YouTube movie in overlay.
 
 == Changelog ==
+
+= 2.1.9 =
+* Added: Fancybox V2 option for retina displays
+
+= 2.1.8 =
+* Update: Check WordPress version before using some functions
+
+= 2.1.7 =
+* Update: Automattically open image blocks without links
+* Update: Automattically open gallery blocks without links
+* Update: Disable core lightbox when active
+* Update: WordPress tested version to 6.5.3
+
+= 2.1.6 =
+* Update: Allow % width/height for PDFs
+* Update: Increase review requests to 50% of users
 
 = 2.1.4 =
 * Update: Adjust review request, up to 20% of users
